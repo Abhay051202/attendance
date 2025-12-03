@@ -79,6 +79,6 @@ class AttendanceTracker:
         try:
             # Beep: Frequency 1000Hz, Duration 500ms
             winsound.Beep(1000, 500) 
-            self.voice.speak("Warning. Unknown person detected.")
+            self.voice.speak("Unknown person detected.")
         except Exception as e:
             print(f"Alert Error: {e}")

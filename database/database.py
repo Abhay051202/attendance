@@ -21,61 +21,98 @@ class DatabaseManager:
             cursor = conn.cursor()
             
             # 1. Persons Table (With Shift Columns)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS persons (
-                    person_id VARCHAR(50) PRIMARY KEY,
-                    name VARCHAR(100) NOT NULL,
-                    email VARCHAR(100),
-                    department VARCHAR(100),
-                    shift_start VARCHAR(10) DEFAULT '09:00',
-                    shift_end VARCHAR(10) DEFAULT '18:00',
-                    registered_date VARCHAR(30) NOT NULL,
-                    face_encoding LONGTEXT
-                )
-            ''')
+            try:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS persons (
+                        person_id VARCHAR(50) PRIMARY KEY,
+                        name VARCHAR(100) NOT NULL,
+                        email VARCHAR(100),
+                        department VARCHAR(100),
+                        shift_start VARCHAR(10) DEFAULT '09:00',
+                        shift_end VARCHAR(10) DEFAULT '18:00',
+                        registered_date VARCHAR(30) NOT NULL,
+                        face_encoding LONGTEXT
+                    )
+                ''')
+                print("Table 'persons' checked/created.")
+            except mysql.connector.Error as err:
+                print(f"Error creating 'persons' table: {err}")
             
             # 2. Attendance Summary
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS attendance (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    person_id VARCHAR(50) NOT NULL,
-                    date VARCHAR(20) NOT NULL,
-                    arrival_time VARCHAR(20),
-                    leaving_time VARCHAR(20),
-                    status VARCHAR(20) DEFAULT 'Present',
-                    FOREIGN KEY (person_id) REFERENCES persons (person_id) ON DELETE CASCADE,
-                    UNIQUE KEY unique_attendance (person_id, date)
-                )
-            ''')
+            try:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS attendance (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        person_id VARCHAR(50) NOT NULL,
+                        date VARCHAR(20) NOT NULL,
+                        arrival_time VARCHAR(20),
+                        leaving_time VARCHAR(20),
+                        status VARCHAR(20) DEFAULT 'Present',
+                        FOREIGN KEY (person_id) REFERENCES persons (person_id) ON DELETE CASCADE,
+                        UNIQUE KEY unique_attendance (person_id, date)
+                    )
+                ''')
+                print("Table 'attendance' checked/created.")
+            except mysql.connector.Error as err:
+                print(f"Error creating 'attendance' table: {err}")
 
             # 3. Raw Logs (With Name Column)
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS face_logs (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    person_id VARCHAR(50),
-                    name VARCHAR(100),
-                    date VARCHAR(20),
-                    time VARCHAR(20),
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (person_id) REFERENCES persons(person_id) ON DELETE CASCADE
-                )
-            ''')
+            try:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS face_logs (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        person_id VARCHAR(50),
+                        name VARCHAR(100),
+                        date VARCHAR(20),
+                        time VARCHAR(20),
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (person_id) REFERENCES persons(person_id) ON DELETE CASCADE
+                    )
+                ''')
+                print("Table 'face_logs' checked/created.")
+            except mysql.connector.Error as err:
+                print(f"Error creating 'face_logs' table: {err}")
 
             # 4. Unknown Faces Table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS unknown_faces (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    snapshot_path VARCHAR(255),
-                    face_encoding LONGTEXT
-                )
-            ''')
+            try:
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS unknown_faces (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        snapshot_path VARCHAR(255),
+                        face_encoding LONGTEXT
+                    )
+                ''')
+                print("Table 'unknown_faces' checked/created.")
+            except mysql.connector.Error as err:
+                print(f"Error creating 'unknown_faces' table: {err}")
             
             conn.commit()
             cursor.close()
             conn.close()
         except mysql.connector.Error as err:
             print(f"Error connecting to MySQL: {err}")
+
+    def create_database_if_not_exists(self):
+        """Creates the database if it doesn't exist"""
+        db_name = self.config.get('database')
+        if not db_name: return
+
+        # Connect without database
+        temp_config = self.config.copy()
+        if 'database' in temp_config:
+            del temp_config['database']
+        
+        try:
+            conn = mysql.connector.connect(**temp_config)
+            cursor = conn.cursor()
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"Database '{db_name}' checked/created successfully.")
+        except mysql.connector.Error as err:
+            print(f"Error creating database: {err}")
 
     # --- CORE LOGGING & ATTENDANCE ---
 
@@ -156,19 +193,21 @@ class DatabaseManager:
                 # --- LOGIN ---
                 cursor.execute('''
                     INSERT INTO attendance (person_id, date, arrival_time, leaving_time, status)
-                    VALUES (%s, %s, %s, NULL, 'Present')
-                ''', (person_id, today, current_time))
+                    VALUES (%s, %s, %s, %s, 'Present')
+                ''', (person_id, today, current_time, current_time))
                 conn.commit()
                 return f"LOGIN: {current_time}"
             else:
-                # --- LOGOUT CHECK (Based on USER'S shift) ---
+                # --- UPDATE LEAVING TIME (Always update to latest seen) ---
+                cursor.execute('''
+                    UPDATE attendance 
+                    SET leaving_time = %s 
+                    WHERE person_id = %s AND date = %s
+                ''', (current_time, person_id, today))
+                conn.commit()
+                
+                # Check if shift is over for voice feedback
                 if now.hour >= user_shift_end_hour:
-                    cursor.execute('''
-                        UPDATE attendance 
-                        SET leaving_time = %s 
-                        WHERE person_id = %s AND date = %s
-                    ''', (current_time, person_id, today))
-                    conn.commit()
                     return f"LOGOUT UPDATE: {current_time}"
                 else:
                     return f"Shift Ongoing (Ends {user_shift_end_str})"
