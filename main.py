@@ -3,10 +3,10 @@ import time
 import warnings
 import traceback
 from datetime import datetime
-from database import DatabaseManager
-from face_recognition import FaceRecognitionHandler
-from attendance_tracker import AttendanceTracker
-from video_processor import VideoProcessor
+from database.database import DatabaseManager
+from core.face_recognition import FaceRecognitionHandler
+from core.attendance_tracker import AttendanceTracker
+from core.video_processor import VideoProcessor
 
 # Filter warnings to keep console clean
 warnings.filterwarnings("ignore")
@@ -17,7 +17,7 @@ class AttendanceSystem:
         
         # Initialize components
         self.db_manager = DatabaseManager()
-        self.face_handler = FaceRecognitionHandler('face_encodings.pkl')
+        self.face_handler = FaceRecognitionHandler('data/face_encodings.pkl')
         self.attendance_tracker = AttendanceTracker(self.db_manager, self.face_handler)
         self.video_processor = VideoProcessor(self.face_handler)
         

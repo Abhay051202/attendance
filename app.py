@@ -6,12 +6,12 @@ import json
 from datetime import datetime
 
 # Import your existing modules
-from database import DatabaseManager
-from face_recognition import FaceRecognitionHandler
-from attendance_tracker import AttendanceTracker
-from video_processor import VideoProcessor
-from smtp_handler import SMTPHandler
-from config import MYSQL_CONFIG, SMTP_CONFIG, EMAIL_NOTIFICATIONS_ENABLED
+from database.database import DatabaseManager
+from core.face_recognition import FaceRecognitionHandler
+from core.attendance_tracker import AttendanceTracker
+from core.video_processor import VideoProcessor
+from core.smtp_handler import SMTPHandler
+from config.config import MYSQL_CONFIG, SMTP_CONFIG, EMAIL_NOTIFICATIONS_ENABLED
 
 app = Flask(__name__)
 CORS(app)  # Allow React to communicate with this server
@@ -19,7 +19,7 @@ CORS(app)  # Allow React to communicate with this server
 # --- INITIALIZATION ---
 print("Initializing Backend Systems...")
 db = DatabaseManager()
-face_handler = FaceRecognitionHandler('face_encodings.pkl')
+face_handler = FaceRecognitionHandler('data/face_encodings.pkl')
 tracker = AttendanceTracker(db, face_handler)
 processor = VideoProcessor(face_handler)
 
